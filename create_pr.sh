@@ -7,7 +7,6 @@ JIRA_TICKET=$(grep -oE '(?i)[a-zA-Z]{2,3}-[0-9]+' <<< "$BRANCH_PREFIX")
 REPO_NAME=$(basename "$PWD")
 BASE_BRANCH="main"
 
-# Only proceed if JIRA_TICKET is defined and not empty
 if [ -n "${JIRA_TICKET}" ]; then
     TICKET_TITLE=$(echo "${BRANCH_NAME#"$BRANCH_PREFIX"}" | sed -e 's/[-_]/ /g' -e 's/\b\(.\)/\u\1/g') | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1'
     # Extract PR title (everything after JIRA TICKET)
