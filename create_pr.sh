@@ -12,34 +12,21 @@ if [ -n "${JIRA_TICKET}" ]; then
     COMMIT_MESSAGE=$(git log -1 --pretty=%B)
     JIRA_LINK="https://owenscorning.atlassian.net/browse/${JIRA_TICKET}"
 
-    # Array to store PR numbers (using normal arrays instead of associative array)
     PR_URLS=()
     PR_BRANCHES=()
 
-    # First pass: Create all PRs and store their numbers
-    for BASE_BRANCH in "${TARGET_BRANCHES[@]}"; do
-        # Map branch names to shorter versions
-        case "$BASE_BRANCH" in
-            "main") BRANCH_LABEL="main" ;;
-            "ci-devel-server") BRANCH_LABEL="dev" ;;
-            "ci-stage-server") BRANCH_LABEL="stage" ;;
-            *) BRANCH_LABEL="$BASE_BRANCH" ;;
-        esac
-        
-        PR_TITLE="[$BRANCH_LABEL, $REPO_NAME] $JIRA_TICKET: $(echo "$BRANCH_NAME" |echo "${TICKET_TITLE}")"
+    for BASE_BRANCH in "${TARGET_BRANCHES[@]}"; do        
+        PR_TITLE="[$BASE_BRANCH, $REPO_NAME] $JIRA_TICKET: $(echo "$BRANCH_NAME" |echo "${TICKET_TITLE}")"
         PR_DESCRIPTION="JIRA: ${JIRA_LINK}\n\n## Describe your changes\n${COMMIT_MESSAGE}"
         
-        # Create PR and get its URL
         PR_URL=$(gh pr create --title "$PR_TITLE" --body "$PR_DESCRIPTION" --head "$BRANCH_NAME" --base "$BASE_BRANCH")
         PR_URLS+=("$PR_URL")
         PR_BRANCHES+=("$BASE_BRANCH")
         echo "Pull request created for $BASE_BRANCH!"
     done
 
-    # Second pass: Update all PR descriptions with cross-references
     for i in "${!PR_BRANCHES[@]}"; do
         BASE_BRANCH="${PR_BRANCHES[$i]}"
-        # Create the description using heredoc for proper formatting
         NEW_DESCRIPTION=$(cat <<EOF
 JIRA: ${JIRA_LINK}
 
@@ -63,7 +50,6 @@ ${COMMIT_MESSAGE}
 EOF
 )
         
-        # Update PR description
         gh pr edit "${PR_URLS[$i]}" --body "$NEW_DESCRIPTION"
         echo "Updated description for PR against $BASE_BRANCH"
     done
