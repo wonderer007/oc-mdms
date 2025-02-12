@@ -12,35 +12,51 @@ if [ -n "${JIRA_TICKET}" ]; then
     COMMIT_MESSAGE=$(git log -1 --pretty=%B)
     JIRA_LINK="https://owenscorning.atlassian.net/browse/${JIRA_TICKET}"
 
-    # Array to store PR numbers
-    declare -A PR_NUMBERS
+    # Array to store PR numbers (using normal arrays instead of associative array)
+    PR_URLS=()
+    PR_BRANCHES=()
 
     # First pass: Create all PRs and store their numbers
     for BASE_BRANCH in "${TARGET_BRANCHES[@]}"; do
         PR_TITLE="[$BASE_BRANCH, $REPO_NAME] $JIRA_TICKET: $(echo "$BRANCH_NAME" |echo "${TICKET_TITLE}")"
         PR_DESCRIPTION="JIRA: ${JIRA_LINK}\n\n## Describe your changes\n${COMMIT_MESSAGE}"
         
-        # Create PR and store its number
-        PR_URL=$(gh pr create --title "$PR_TITLE" --body "$PR_DESCRIPTION" --head "$BRANCH_NAME" --base "$BASE_BRANCH" --json number --jq .number)
-        PR_NUMBERS[$BASE_BRANCH]=$PR_URL
+        # Create PR and get its URL
+        PR_URL=$(gh pr create --title "$PR_TITLE" --body "$PR_DESCRIPTION" --head "$BRANCH_NAME" --base "$BASE_BRANCH")
+        PR_URLS+=("$PR_URL")
+        PR_BRANCHES+=("$BASE_BRANCH")
         echo "Pull request created for $BASE_BRANCH!"
     done
 
     # Second pass: Update all PR descriptions with cross-references
-    for BASE_BRANCH in "${TARGET_BRANCHES[@]}"; do
-        NEW_DESCRIPTION="JIRA: ${JIRA_LINK}\n\n"
-        
-        # Add links to other PRs
-        for OTHER_BRANCH in "${TARGET_BRANCHES[@]}"; do
-            if [ "$OTHER_BRANCH" != "$BASE_BRANCH" ]; then
-                NEW_DESCRIPTION+="PR against ${OTHER_BRANCH}: #${PR_NUMBERS[$OTHER_BRANCH]}\n"
+    for i in "${!PR_BRANCHES[@]}"; do
+        BASE_BRANCH="${PR_BRANCHES[$i]}"
+        # Create the description using heredoc for proper formatting
+        NEW_DESCRIPTION=$(cat <<EOF
+JIRA: ${JIRA_LINK}
+
+EOF
+)
+
+        for j in "${!PR_BRANCHES[@]}"; do
+            if [ "${PR_BRANCHES[$j]}" != "$BASE_BRANCH" ]; then
+                NEW_DESCRIPTION+=$(cat <<EOF
+
+PR against \`${PR_BRANCHES[$j]}\`: ${PR_URLS[$j]}
+EOF
+)
             fi
         done
         
-        NEW_DESCRIPTION+="\n## Describe your changes\n${COMMIT_MESSAGE}"
+        NEW_DESCRIPTION+=$(cat <<EOF
+
+## Describe your changes
+${COMMIT_MESSAGE}
+EOF
+)
         
         # Update PR description
-        gh pr edit "${PR_NUMBERS[$BASE_BRANCH]}" --body "$NEW_DESCRIPTION"
+        gh pr edit "${PR_URLS[$i]}" --body "$NEW_DESCRIPTION"
         echo "Updated description for PR against $BASE_BRANCH"
     done
 
