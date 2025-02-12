@@ -11,6 +11,12 @@ jira_ticket = branch_name.match(/(?i)[a-zA-Z]{2,3}-[0-9]+/)&.[](0)
 repo_name = Pathname.pwd.basename.to_s
 target_branches = ["main", "ci-devel-server", "ci-stage-server"]
 
+BRANCH_LABELS = {
+  "main" => "main",
+  "ci-devel-server" => "dev",
+  "ci-stage-server" => "stage"
+}
+
 if jira_ticket
   # Format ticket title from branch name
   ticket_title = branch_name[branch_prefix.length..]
@@ -22,37 +28,52 @@ if jira_ticket
   commit_message = `git log -1 --pretty=%B`.strip
   jira_link = "https://owenscorning.atlassian.net/browse/#{jira_ticket}"
 
-  pr_urls = []
-  pr_branches = []
+  pr_map = {}  # Hash to store branch => PR URL mapping
 
   # Create PRs for each target branch
   target_branches.each do |base_branch|
-    pr_title = "[#{base_branch}, #{repo_name}] #{jira_ticket}: #{ticket_title}"
-    pr_description = "JIRA: #{jira_link}\n\n## Describe your changes\n#{commit_message}"
-    
-    pr_url = `gh pr create --title "#{pr_title}" --body "#{pr_description}" --head "#{branch_name}" --base "#{base_branch}"`.strip
-    pr_urls << pr_url
-    pr_branches << base_branch
-    puts "Pull request created for #{base_branch}!"
+    pr_title = "[#{BRANCH_LABELS[base_branch]}, #{repo_name}] #{jira_ticket}: #{ticket_title}"
+    pr_description = <<~DESC
+      JIRA: #{jira_link}
+
+      ## Describe your changes
+      #{commit_message}
+    DESC
+
+    # Execute gh pr create and capture both stdout and stderr
+    stdout, stderr, status = Open3.capture3("gh", "pr", "create", "--title", pr_title, "--body", pr_description, "--head", branch_name, "--base", base_branch)
+
+    # If PR creation was successful, use stdout (the PR URL)
+    # If PR already exists, extract URL from stderr
+    pr_url = if status.success?
+      stdout.strip
+    else
+      stderr.match(/already exists:\s*(https:\/\/.*?)(?:\s|$)/)&.[](1)
+    end
+
+    pr_map[base_branch] = pr_url if pr_url
+    puts "Pull request created/found for #{base_branch}!"
   end
 
   # Update PR descriptions with cross-references
-  pr_branches.each_with_index do |base_branch, i|
-    new_description = "JIRA: #{jira_link}\n\n"
-    
-    pr_branches.each_with_index do |other_branch, j|
-      if other_branch != base_branch
-        new_description += "\nPR against `#{other_branch}`: #{pr_urls[j]}\n"
-      end
-    end
-    
-    new_description += "\n## Describe your changes\n#{commit_message}"
-    
-    system("gh", "pr", "edit", pr_urls[i], "--body", new_description)
+  pr_map.each do |base_branch, pr_url|
+    new_description = <<~DESC
+      JIRA: #{jira_link}
+
+      #{pr_map.map { |other_branch, other_url|
+        next if other_branch == base_branch
+        "PR against `#{other_branch}`: #{other_url}"
+      }.compact.join("\n")}
+
+      ## Describe your changes
+      #{commit_message}
+    DESC
+
+    Open3.capture3("gh", "pr", "edit", pr_url, "--body", new_description)
     puts "Updated description for PR against #{base_branch}"
   end
 
   puts "All pull requests created and updated successfully!"
 else
   puts "Can not find JIRA ticket number"
-end 
+end
