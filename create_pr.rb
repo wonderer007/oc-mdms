@@ -3,7 +3,6 @@
 require 'open3'
 require 'pathname'
 
-# Get current branch name
 branch_name = `git symbolic-ref --short HEAD`.strip
 branch_regex = /^([a-zA-Z]*\/)?[a-zA-Z]{2,3}-[0-9]+/
 branch_prefix = branch_name.match(branch_regex)&.[](0)
@@ -18,7 +17,6 @@ BRANCH_LABELS = {
 }
 
 if jira_ticket
-  # Format ticket title from branch name
   ticket_title = branch_name[branch_prefix.length..]
     .gsub(/[-_]/, ' ')
     .split
@@ -28,8 +26,7 @@ if jira_ticket
   commit_message = `git log -1 --pretty=%B`.strip
   jira_link = "https://owenscorning.atlassian.net/browse/#{jira_ticket}"
 
-  pr_map = {}  # Hash to store branch => PR URL mapping
-
+  pr_map = {}
   # Create PRs for each target branch
   target_branches.each do |base_branch|
     pr_title = "[#{BRANCH_LABELS[base_branch]}, #{repo_name}] #{jira_ticket}: #{ticket_title}"
@@ -40,11 +37,8 @@ if jira_ticket
       #{commit_message}
     DESC
 
-    # Execute gh pr create and capture both stdout and stderr
-    stdout, stderr, status = Open3.capture3("gh", "pr", "create", "--title", pr_title, "--body", pr_description, "--head", branch_name, "--base", base_branch)
+    stdout, stderr, status = Open3.capture3("gh", "pr", "create", "--title", pr_title, "--body", pr_description, "--head", branch_name, "--base", base_branch, "--assignee", "@me")
 
-    # If PR creation was successful, use stdout (the PR URL)
-    # If PR already exists, extract URL from stderr
     pr_url = if status.success?
       stdout.strip
     else
@@ -55,7 +49,6 @@ if jira_ticket
     puts "Pull request created/found for #{base_branch}!"
   end
 
-  # Update PR descriptions with cross-references
   pr_map.each do |base_branch, pr_url|
     new_description = <<~DESC
       JIRA: #{jira_link}
