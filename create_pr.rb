@@ -2,6 +2,7 @@
 
 require 'open3'
 require 'pathname'
+require 'optparse'
 
 # Check if GitHub CLI (gh) is installed
 def gh_installed?
@@ -75,16 +76,44 @@ def update_pr_descriptions(pr_map, jira_link)
   end
 end
 
+# Parse command line arguments
+def parse_arguments
+  options = {
+    skip_main: false,
+    skip_devel: false,
+    skip_stage: false
+  }
+
+  OptionParser.new do |opts|
+    opts.banner = "Usage: #{$0} [options]"
+    opts.on('--no-main', 'Skip creating PR for main branch') { options[:skip_main] = true }
+    opts.on('--no-ci-devel-server', 'Skip creating PR for ci-devel-server branch') { options[:skip_devel] = true }
+    opts.on('--no-ci-stage-server', 'Skip creating PR for ci-stage-server branch') { options[:skip_stage] = true }
+  end.parse!
+
+  options
+end
+
 # Main execution starts here
 abort '❌ Error: GitHub CLI (gh) is not installed. Install it from https://cli.github.com/' unless gh_installed?
 abort '❌ Error: Not authenticated with GitHub CLI. Run `gh auth login`.' unless gh_authenticated?
 
+options = parse_arguments
 branch_name = `git symbolic-ref --short HEAD`.strip
 jira_ticket = extract_jira_ticket(branch_name)
 abort '❌ Error: Cannot find JIRA ticket number in branch name!' unless jira_ticket
 
 repo_name = Pathname.pwd.basename.to_s
-target_branches = %w[main ci-devel-server ci-stage-server]
+all_target_branches = %w[main ci-devel-server ci-stage-server]
+target_branches = all_target_branches.reject do |branch|
+  case branch
+  when 'main' then options[:skip_main]
+  when 'ci-devel-server' then options[:skip_devel]
+  when 'ci-stage-server' then options[:skip_stage]
+  end
+end
+
+abort '❌ Error: No target branches selected for PR creation!' if target_branches.empty?
 
 BRANCH_LABELS = {
   'main' => 'main',
