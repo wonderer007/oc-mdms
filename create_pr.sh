@@ -12,21 +12,39 @@ if [ -n "${JIRA_TICKET}" ]; then
     COMMIT_MESSAGE=$(git log -1 --pretty=%B)
     JIRA_LINK="https://owenscorning.atlassian.net/browse/${JIRA_TICKET}"
 
-    PR_DESCRIPTION=$(cat <<EOF
-JIRA: ${JIRA_LINK}
+    # Array to store PR numbers
+    declare -A PR_NUMBERS
 
-## Describe your changes
-${COMMIT_MESSAGE}
-EOF
-    )
-
+    # First pass: Create all PRs and store their numbers
     for BASE_BRANCH in "${TARGET_BRANCHES[@]}"; do
         PR_TITLE="[$BASE_BRANCH, $REPO_NAME] $JIRA_TICKET: $(echo "$BRANCH_NAME" |echo "${TICKET_TITLE}")"
-        gh pr create --title "$PR_TITLE" --body "$PR_DESCRIPTION" --head "$BRANCH_NAME" --base "$BASE_BRANCH"
+        PR_DESCRIPTION="JIRA: ${JIRA_LINK}\n\n## Describe your changes\n${COMMIT_MESSAGE}"
+        
+        # Create PR and store its number
+        PR_URL=$(gh pr create --title "$PR_TITLE" --body "$PR_DESCRIPTION" --head "$BRANCH_NAME" --base "$BASE_BRANCH" --json number --jq .number)
+        PR_NUMBERS[$BASE_BRANCH]=$PR_URL
         echo "Pull request created for $BASE_BRANCH!"
     done
 
-    echo "All pull requests created successfully!"
+    # Second pass: Update all PR descriptions with cross-references
+    for BASE_BRANCH in "${TARGET_BRANCHES[@]}"; do
+        NEW_DESCRIPTION="JIRA: ${JIRA_LINK}\n\n"
+        
+        # Add links to other PRs
+        for OTHER_BRANCH in "${TARGET_BRANCHES[@]}"; do
+            if [ "$OTHER_BRANCH" != "$BASE_BRANCH" ]; then
+                NEW_DESCRIPTION+="PR against ${OTHER_BRANCH}: #${PR_NUMBERS[$OTHER_BRANCH]}\n"
+            fi
+        done
+        
+        NEW_DESCRIPTION+="\n## Describe your changes\n${COMMIT_MESSAGE}"
+        
+        # Update PR description
+        gh pr edit "${PR_NUMBERS[$BASE_BRANCH]}" --body "$NEW_DESCRIPTION"
+        echo "Updated description for PR against $BASE_BRANCH"
+    done
+
+    echo "All pull requests created and updated successfully!"
 else
     echo "Can not find JIRA ticket number"
 fi
