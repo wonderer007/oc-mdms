@@ -8,7 +8,7 @@ REPO_NAME=$(basename "$PWD")
 TARGET_BRANCHES=("main" "ci-devel-server" "ci-stage-server")
 
 if [ -n "${JIRA_TICKET}" ]; then
-    TICKET_TITLE=$(echo "${BRANCH_NAME#"$BRANCH_PREFIX"}" | sed -e 's/[-_]/ /g' -e 's/\b\(.\)/\u\1/g') | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1'
+    TICKET_TITLE=$(echo "${BRANCH_NAME#"$BRANCH_PREFIX"}" | sed -e 's/[-_]/ /g' -e 's/\b\(.\)/\u\1/g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1')
     COMMIT_MESSAGE=$(git log -1 --pretty=%B)
     JIRA_LINK="https://owenscorning.atlassian.net/browse/${JIRA_TICKET}"
 
