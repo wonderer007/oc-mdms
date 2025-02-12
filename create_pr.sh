@@ -18,7 +18,15 @@ if [ -n "${JIRA_TICKET}" ]; then
 
     # First pass: Create all PRs and store their numbers
     for BASE_BRANCH in "${TARGET_BRANCHES[@]}"; do
-        PR_TITLE="[$BASE_BRANCH, $REPO_NAME] $JIRA_TICKET: $(echo "$BRANCH_NAME" |echo "${TICKET_TITLE}")"
+        # Map branch names to shorter versions
+        case "$BASE_BRANCH" in
+            "main") BRANCH_LABEL="main" ;;
+            "ci-devel-server") BRANCH_LABEL="dev" ;;
+            "ci-stage-server") BRANCH_LABEL="stage" ;;
+            *) BRANCH_LABEL="$BASE_BRANCH" ;;
+        esac
+        
+        PR_TITLE="[$BRANCH_LABEL, $REPO_NAME] $JIRA_TICKET: $(echo "$BRANCH_NAME" |echo "${TICKET_TITLE}")"
         PR_DESCRIPTION="JIRA: ${JIRA_LINK}\n\n## Describe your changes\n${COMMIT_MESSAGE}"
         
         # Create PR and get its URL
