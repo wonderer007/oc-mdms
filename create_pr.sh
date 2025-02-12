@@ -9,10 +9,9 @@ BASE_BRANCH="main"
 
 # Only proceed if JIRA_TICKET is defined and not empty
 if [ -n "${JIRA_TICKET}" ]; then
-    TICKET_TITLE=${BRANCH_NAME#"$BRANCH_PREFIX"}  # Remove BRANCH_PREFIX from the start of BRANCH_NAME
-    TICKET_TITLE=$(echo "$TICKET_TITLE" | sed -e 's/[-_]/ /g' -e 's/\b\(.\)/\u\1/g') 
+    TICKET_TITLE=$(echo "${BRANCH_NAME#"$BRANCH_PREFIX"}" | sed -e 's/[-_]/ /g' -e 's/\b\(.\)/\u\1/g') | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1'
     # Extract PR title (everything after JIRA TICKET)
-    PR_TITLE="[$BASE_BRANCH, $REPO_NAME] $JIRA_TICKET: $(echo "$BRANCH_NAME" | sed -E "s/.*\///" | tr '-' ' ' | awk '{for(i=1;i<=NF;i++)sub(/./,toupper(substr($i,1,1)),$i)}1')"
+    PR_TITLE="[$BASE_BRANCH, $REPO_NAME] $JIRA_TICKET: $(echo "$BRANCH_NAME" |echo "${TICKET_TITLE}")"
     # Get the latest commit message
     COMMIT_MESSAGE=$(git log -1 --pretty=%B)
 
