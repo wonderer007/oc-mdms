@@ -94,6 +94,12 @@ def parse_arguments
   options
 end
 
+# Check if the branch is pushed to the remote
+def branch_pushed?(branch_name)
+  remote_branches = `git branch -r`.split("\n").map(&:strip)
+  remote_branches.any? { |remote_branch| remote_branch.end_with?("/#{branch_name}") }
+end
+
 # Main execution starts here
 abort '❌ Error: GitHub CLI (gh) is not installed. Install it from https://cli.github.com/' unless gh_installed?
 abort '❌ Error: Not authenticated with GitHub CLI. Run `gh auth login`.' unless gh_authenticated?
@@ -102,6 +108,8 @@ options = parse_arguments
 branch_name = `git symbolic-ref --short HEAD`.strip
 jira_ticket = extract_jira_ticket(branch_name)
 abort '❌ Error: Cannot find JIRA ticket number in branch name!' unless jira_ticket
+
+abort "❌ Error: Branch '#{branch_name}' is not pushed to the remote. Please push your branch first." unless branch_pushed?(branch_name)
 
 repo_name = Pathname.pwd.basename.to_s
 all_target_branches = %w[main ci-devel-server ci-stage-server]
