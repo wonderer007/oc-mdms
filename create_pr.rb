@@ -17,7 +17,7 @@ end
 
 # Extract JIRA ticket number from branch name
 def extract_jira_ticket(branch_name)
-  match = branch_name.match(/\b[A-Z]{2,3}-\d+\b/i)
+  match = branch_name.match(/\b[A-Z]{2,3}[-_]\d+\b/i)
   match ? match[0].upcase : nil
 end
 
